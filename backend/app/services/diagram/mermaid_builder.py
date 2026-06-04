@@ -162,7 +162,7 @@ def build_er_diagram(architecture: ArchitectureDesign) -> str:
         '    .er.relationshipLabel { fill: #f8fafc !important; }',
         '    .er.relationshipLabelBox { fill: #1e293b !important; stroke: #38bdf8 !important; }',
         '    .er.relationshipLine { stroke: #64748b !important; stroke-width: 1.5px !important; }',
-        '    .er text, .er text *, .er tspan, .er .attributeText, .er .labelText, .er [class*=\\"labelText\\"], .er [class*=\\"attributeText\\"] { fill: #e2e8f0 !important; color: #e2e8f0 !important; font-family: Inter, sans-serif !important; }',
+        '    .er text, .er text *, .er tspan, .er .attributeText, .er .labelText, .er [class*="labelText"], .er [class*="attributeText"] { fill: #e2e8f0 !important; color: #e2e8f0 !important; font-family: Inter, sans-serif !important; }',
         '  "',
         '}}%%',
         "erDiagram"
@@ -175,16 +175,13 @@ def build_er_diagram(architecture: ArchitectureDesign) -> str:
         if hasattr(entity, "columns") and entity.columns:
             lines.append(f"    {safe_name} {{")
             for col in entity.columns:
-                constraint_str = " ".join(col.constraints) if col.constraints else ""
                 col_type = col.type.replace("(", "_").replace(")", "").replace(",", "_").replace(" ", "_")
-                if constraint_str:
-                    lines.append(f'        {col_type} {col.name} "{constraint_str}"')
-                else:
-                    lines.append(f"        {col_type} {col.name}")
+                # Use simplified type for Mermaid ER Diagram
+                lines.append(f"        {col_type} {col.name}")
             lines.append("    }")
         else:
             lines.append(f"    {safe_name} {{")
-            lines.append("        UUID id \"PK\"")
+            lines.append("        UUID id")
             lines.append("    }")
 
     for relation in architecture.database_relations:
