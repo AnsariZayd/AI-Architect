@@ -12,11 +12,11 @@ import {
   getHealth,
 } from "../services/api.js";
 
-const starterRequirements = `Build an AI software architect web app.
-- Users paste requirements or upload documents.
-- The system analyzes actors, features, assumptions, and missing details.
-- The backend generates architecture modules, APIs, database entities, risks, and a Mermaid diagram.
-- Results should be exportable later.`;
+const starterRequirements = `Build a web-based Tic Tac Toe game.
+- The game should support two players playing turn-by-turn on the same screen (X and O).
+- Track the current game state, validate win conditions (horizontal, vertical, diagonal), and detect draws.
+- Allow users to reset the game board to start a new round.
+- Keep a history of player wins and losses locally.`;
 
 function LoadingSkeleton() {
   return (
