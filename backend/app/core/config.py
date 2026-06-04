@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     groq_api_key: Annotated[str | None, Field(alias="GROQ_API_KEY")] = None
     groq_model: Annotated[str, Field(alias="GROQ_MODEL")] = "llama-3.3-70b-versatile"
     database_url: Annotated[str | None, Field(alias="DATABASE_URL")] = None
-    cors_origins: Annotated[list[str], Field(alias="CORS_ORIGINS")] = [
+    cors_origins: Annotated[Any, Field(alias="CORS_ORIGINS")] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]
