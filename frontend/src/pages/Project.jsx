@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Activity, Download, Sparkles, Copy, Check, Database, Sun, Moon } from "lucide-react";
+import { Download, Sparkles, Copy, Check, Database, Sun, Moon } from "lucide-react";
 
 import ArchitectureCard from "../components/ArchitectureCard.jsx";
 import DiagramViewer from "../components/DiagramViewer.jsx";
@@ -9,7 +9,6 @@ import {
   API_BASE_URL,
   createProject,
   generateArchitecture,
-  getHealth,
 } from "../services/api.js";
 
 const starterRequirements = `Build a web-based Tic Tac Toe game.
@@ -35,7 +34,6 @@ export default function Project() {
   const [requirements, setRequirements] = useState(starterRequirements);
   const [project, setProject] = useState(null);
   const [result, setResult] = useState(null);
-  const [health, setHealth] = useState("checking");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [runInfo, setRunInfo] = useState(null);
@@ -50,12 +48,6 @@ export default function Project() {
     }
     localStorage.setItem("theme", theme);
   }, [theme]);
-
-  useEffect(() => {
-    getHealth()
-      .then(() => setHealth("online"))
-      .catch(() => setHealth("offline"));
-  }, []);
 
   async function handleGenerate() {
     setError("");
@@ -419,10 +411,6 @@ AI Software Architect Summary:
           >
             {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
           </button>
-          <div className={`status-pill ${health}`}>
-            <Activity size={16} aria-hidden="true" />
-            API {health} · {API_BASE_URL}
-          </div>
         </div>
       </header>
 
