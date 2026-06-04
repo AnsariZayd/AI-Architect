@@ -1,0 +1,742 @@
+{
+  "version": null,
+  "analysis": {
+    "actors": [
+      "Player - participant who solves challenges and interacts via ticketing",
+      "Team - group of Players that share challenge instances",
+      "Organizer - CTF event manager who creates and configures challenges and oversees platform",
+      "Developer (DEV) - technical staff who receive tickets and maintain challenge instances",
+      "Admin - system administrator with full RBAC rights to manage users, roles, and platform settings",
+      "Cloud Provider - external service (e.g., AWS, GCP) that hosts on\u2011demand challenge instances",
+      "Ticketing Service - external or built\u2011in chat system for communication between Players, Organizers, and Developers",
+      "Background Worker - automated service that provisions and tears down challenge containers",
+      "Monitoring Service - external observability tool (e.g., Datadog, CloudWatch)"
+    ],
+    "features": [
+      "User registration with email/password and optional OAuth providers",
+      "User profile management (edit details, change password, view activity)",
+      "Team creation, invitation, join/leave workflow",
+      "RBAC enforcement per functionality (Admin, Organizer, Developer, Player, Team)",
+      "Create new CTF challenge with description, flags, scoring, and difficulty metadata",
+      "Configure challenge cloud hosting settings (instance type, region, resource limits)",
+      "On\u2011demand provisioning of isolated web\u2011based challenge instance per Team when challenge is started",
+      "Automatic lifecycle management of challenge instances (start, stop, timeout, destroy)",
+      "Update and version control of challenge assets and deployment scripts",
+      "Global platform settings (registration policy, competition schedule, scoring rules)",
+      "Ticketing system with threaded chat between Players, Organizers, and Developers",
+      "Ticket creation, assignment, status tracking (open, in\u2011progress, resolved, closed)",
+      "Real\u2011time notifications for ticket updates and challenge instance status changes",
+      "Audit log of all RBAC\u2011protected actions and ticket interactions",
+      "Integration with paid CDN and load balancer for low\u2011latency challenge delivery",
+      "Use of managed relational database service for user, team, and challenge data",
+      "Use of managed cache service for session and instance state",
+      "Automated backups of database and challenge instance snapshots",
+      "Reporting dashboard for Organizers (team rankings, challenge solve rates, ticket metrics)"
+    ],
+    "ambiguities": [
+      "Exact granularity of RBAC permissions (e.g., can a Developer edit challenge settings or only respond to tickets?)",
+      "Whether challenge instances must persist state across Team sessions or be stateless per start",
+      "How \u201cfast and lag free\u201d is quantified and what latency targets are required for different regions",
+      "Preferred ticketing workflow (e.g., escalation paths, SLA response times)",
+      "Whether external cloud provider is pre\u2011selected or configurable per Organizer",
+      "How challenge versioning and rollback should be handled",
+      "If there is a need for real\u2011time scoreboard updates and how they are delivered",
+      "Whether multi\u2011language support is required for UI and challenge content",
+      "Details on backup retention period and disaster\u2011recovery RPO/RTO",
+      "Scope of audit logging (what actions, how long retained)"
+    ],
+    "assumptions": [
+      "The platform will use email/password authentication with optional OAuth (Google, GitHub) as initial login method",
+      "User data and challenge metadata will be stored in a managed PostgreSQL instance",
+      "Challenge instances will run in Docker containers orchestrated by a managed Kubernetes service (e.g., EKS, GKE)",
+      "Paid cloud services (compute, storage, CDN, load balancer) will be provisioned to meet low\u2011latency requirements",
+      "RBAC will be role\u2011based with hierarchical permissions defined by Admins and Organizers",
+      "Teams are limited to a maximum of 5 Players unless overridden by an Organizer",
+      "Challenge instances are isolated per Team and have a configurable maximum runtime (default 2\u202fhours)",
+      "Ticketing will be implemented using a paid SaaS solution (e.g., Zendesk) or a hosted chat microservice",
+      "All communications will be served over HTTPS and use TLS 1.2+",
+      "The system expects up to 10\u202f000 concurrent Players during peak CTF events",
+      "Performance SLA: challenge page load < 200\u202fms for users in supported regions",
+      "Logging and monitoring will be handled by a paid observability platform (e.g., Datadog)",
+      "Data privacy compliance will follow GDPR for EU participants and CCPA for US participants"
+    ],
+    "missing_requirements": [
+      "Security: password strength policy, MFA, rate limiting, protection against XSS/CSRF, secure storage of flags, secret management for cloud credentials",
+      "Performance: response time targets for registration, challenge launch, ticketing, and scoreboard updates",
+      "Scalability: auto\u2011scaling of web tier, challenge instance pool, database read replicas, CDN edge caching",
+      "Monitoring & Observability: health checks, alerting thresholds, request tracing, dashboarding for latency and error rates",
+      "Logging: structured logs for all services, retention policy, log aggregation",
+      "Backup & Recovery: automated daily backups, point\u2011in\u2011time restore, disaster recovery testing",
+      "Compliance: GDPR/CCPA data handling, consent management, data export/delete mechanisms",
+      "Accessibility: WCAG 2.1 AA compliance for UI components",
+      "Internationalization: support for multiple languages and locale\u2011specific date/number formats",
+      "Data Privacy: encryption at rest and in transit, data minimization, retention schedules",
+      "Error Handling: user\u2011friendly error pages, retry mechanisms, graceful degradation during service outages"
+    ]
+  },
+  "persisted": false,
+  "created_at": "2026-06-03T09:33:55.079962",
+  "architecture": {
+    "apis": [],
+    "risks": [],
+    "modules": [
+      {
+        "name": "AuthService",
+        "description": "Handles user authentication, token issuance and revocation",
+        "responsibilities": [
+          "Validate credentials",
+          "Issue JWT access and refresh tokens",
+          "Manage token revocation"
+        ]
+      },
+      {
+        "name": "UserService",
+        "description": "Manages user profiles and account lifecycle",
+        "responsibilities": [
+          "Create and update user records",
+          "Retrieve user details",
+          "Deactivate or delete accounts"
+        ]
+      },
+      {
+        "name": "RBACService",
+        "description": "Enforces role\u2011based access control across the platform",
+        "responsibilities": [
+          "Assign roles to users",
+          "Check permissions for actions",
+          "Expose permission lookup API"
+        ]
+      },
+      {
+        "name": "ChallengeService",
+        "description": "CRUD operations for CTF challenges and metadata",
+        "responsibilities": [
+          "Create, read, update, delete challenges",
+          "Link challenges to owners",
+          "Publish challenge listings"
+        ]
+      },
+      {
+        "name": "InstanceService",
+        "description": "Provisions on\u2011demand challenge instances per team",
+        "responsibilities": [
+          "Start cloud instance for a challenge",
+          "Track instance status",
+          "Terminate instances"
+        ]
+      },
+      {
+        "name": "SettingsService",
+        "description": "Stores and serves per\u2011challenge cloud hosting settings",
+        "responsibilities": [
+          "Persist challenge settings",
+          "Validate cloud configuration",
+          "Expose settings API"
+        ]
+      },
+      {
+        "name": "TicketService",
+        "description": "Ticketing system for communication between players, organizers and devs",
+        "responsibilities": [
+          "Create tickets",
+          "Add messages to tickets",
+          "Change ticket status"
+        ]
+      },
+      {
+        "name": "NotificationService",
+        "description": "Sends real\u2011time notifications and email alerts",
+        "responsibilities": [
+          "Publish event notifications",
+          "Send email on ticket updates",
+          "Push instance ready alerts"
+        ]
+      },
+      {
+        "name": "APIGateway",
+        "description": "Entry point routing external requests to internal services",
+        "responsibilities": [
+          "Route HTTP calls",
+          "Enforce auth middleware",
+          "Rate limit requests"
+        ]
+      },
+      {
+        "name": "Frontend",
+        "description": "Web UI built for participants and organizers",
+        "responsibilities": [
+          "Render challenge catalog",
+          "Display ticket chat UI",
+          "Interact with auth flows"
+        ]
+      }
+    ],
+    "data_flows": [],
+    "tech_stack": {},
+    "deployment_style": "",
+    "database_entities": [
+      {
+        "name": "users",
+        "columns": [
+          {
+            "name": "id",
+            "type": "UUID",
+            "constraints": [
+              "PK"
+            ]
+          },
+          {
+            "name": "email",
+            "type": "VARCHAR(255)",
+            "constraints": [
+              "UNIQUE",
+              "NOT NULL"
+            ]
+          },
+          {
+            "name": "password_hash",
+            "type": "VARCHAR(255)",
+            "constraints": [
+              "NOT NULL"
+            ]
+          },
+          {
+            "name": "full_name",
+            "type": "VARCHAR(255)",
+            "constraints": []
+          },
+          {
+            "name": "is_active",
+            "type": "BOOLEAN",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT true"
+            ]
+          },
+          {
+            "name": "created_at",
+            "type": "TIMESTAMP",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT NOW()"
+            ]
+          },
+          {
+            "name": "updated_at",
+            "type": "TIMESTAMP",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT NOW()"
+            ]
+          }
+        ],
+        "description": "Stores registered user accounts"
+      },
+      {
+        "name": "roles",
+        "columns": [
+          {
+            "name": "id",
+            "type": "UUID",
+            "constraints": [
+              "PK"
+            ]
+          },
+          {
+            "name": "name",
+            "type": "VARCHAR(50)",
+            "constraints": [
+              "UNIQUE",
+              "NOT NULL"
+            ]
+          },
+          {
+            "name": "description",
+            "type": "TEXT",
+            "constraints": []
+          },
+          {
+            "name": "created_at",
+            "type": "TIMESTAMP",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT NOW()"
+            ]
+          },
+          {
+            "name": "updated_at",
+            "type": "TIMESTAMP",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT NOW()"
+            ]
+          }
+        ],
+        "description": "Defines RBAC roles"
+      },
+      {
+        "name": "user_roles",
+        "columns": [
+          {
+            "name": "id",
+            "type": "UUID",
+            "constraints": [
+              "PK"
+            ]
+          },
+          {
+            "name": "user_id",
+            "type": "UUID",
+            "constraints": [
+              "FK users(id)",
+              "NOT NULL"
+            ]
+          },
+          {
+            "name": "role_id",
+            "type": "UUID",
+            "constraints": [
+              "FK roles(id)",
+              "NOT NULL"
+            ]
+          },
+          {
+            "name": "created_at",
+            "type": "TIMESTAMP",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT NOW()"
+            ]
+          },
+          {
+            "name": "updated_at",
+            "type": "TIMESTAMP",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT NOW()"
+            ]
+          }
+        ],
+        "description": "Many\u2011to\u2011many link between users and roles"
+      },
+      {
+        "name": "teams",
+        "columns": [
+          {
+            "name": "id",
+            "type": "UUID",
+            "constraints": [
+              "PK"
+            ]
+          },
+          {
+            "name": "name",
+            "type": "VARCHAR(100)",
+            "constraints": [
+              "NOT NULL"
+            ]
+          },
+          {
+            "name": "created_at",
+            "type": "TIMESTAMP",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT NOW()"
+            ]
+          },
+          {
+            "name": "updated_at",
+            "type": "TIMESTAMP",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT NOW()"
+            ]
+          }
+        ],
+        "description": "Groups of participants competing together"
+      },
+      {
+        "name": "team_members",
+        "columns": [
+          {
+            "name": "id",
+            "type": "UUID",
+            "constraints": [
+              "PK"
+            ]
+          },
+          {
+            "name": "team_id",
+            "type": "UUID",
+            "constraints": [
+              "FK teams(id)",
+              "NOT NULL"
+            ]
+          },
+          {
+            "name": "user_id",
+            "type": "UUID",
+            "constraints": [
+              "FK users(id)",
+              "NOT NULL"
+            ]
+          },
+          {
+            "name": "role",
+            "type": "VARCHAR(50)",
+            "constraints": []
+          },
+          {
+            "name": "created_at",
+            "type": "TIMESTAMP",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT NOW()"
+            ]
+          },
+          {
+            "name": "updated_at",
+            "type": "TIMESTAMP",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT NOW()"
+            ]
+          }
+        ],
+        "description": "Membership of users in teams"
+      },
+      {
+        "name": "challenges",
+        "columns": [
+          {
+            "name": "id",
+            "type": "UUID",
+            "constraints": [
+              "PK"
+            ]
+          },
+          {
+            "name": "title",
+            "type": "VARCHAR(200)",
+            "constraints": [
+              "NOT NULL"
+            ]
+          },
+          {
+            "name": "description",
+            "type": "TEXT",
+            "constraints": []
+          },
+          {
+            "name": "difficulty",
+            "type": "VARCHAR(20)",
+            "constraints": []
+          },
+          {
+            "name": "created_by",
+            "type": "UUID",
+            "constraints": [
+              "FK users(id)",
+              "NOT NULL"
+            ]
+          },
+          {
+            "name": "created_at",
+            "type": "TIMESTAMP",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT NOW()"
+            ]
+          },
+          {
+            "name": "updated_at",
+            "type": "TIMESTAMP",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT NOW()"
+            ]
+          }
+        ],
+        "description": "CTF challenge definitions"
+      },
+      {
+        "name": "challenge_settings",
+        "columns": [
+          {
+            "name": "id",
+            "type": "UUID",
+            "constraints": [
+              "PK"
+            ]
+          },
+          {
+            "name": "challenge_id",
+            "type": "UUID",
+            "constraints": [
+              "FK challenges(id)",
+              "UNIQUE",
+              "NOT NULL"
+            ]
+          },
+          {
+            "name": "cloud_provider",
+            "type": "VARCHAR(50)",
+            "constraints": []
+          },
+          {
+            "name": "instance_type",
+            "type": "VARCHAR(50)",
+            "constraints": []
+          },
+          {
+            "name": "max_instances",
+            "type": "INTEGER",
+            "constraints": []
+          },
+          {
+            "name": "created_at",
+            "type": "TIMESTAMP",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT NOW()"
+            ]
+          },
+          {
+            "name": "updated_at",
+            "type": "TIMESTAMP",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT NOW()"
+            ]
+          }
+        ],
+        "description": "Cloud hosting configuration per challenge"
+      },
+      {
+        "name": "challenge_instances",
+        "columns": [
+          {
+            "name": "id",
+            "type": "UUID",
+            "constraints": [
+              "PK"
+            ]
+          },
+          {
+            "name": "challenge_id",
+            "type": "UUID",
+            "constraints": [
+              "FK challenges(id)",
+              "NOT NULL"
+            ]
+          },
+          {
+            "name": "team_id",
+            "type": "UUID",
+            "constraints": [
+              "FK teams(id)",
+              "NOT NULL"
+            ]
+          },
+          {
+            "name": "status",
+            "type": "VARCHAR(20)",
+            "constraints": [
+              "NOT NULL"
+            ]
+          },
+          {
+            "name": "endpoint_url",
+            "type": "VARCHAR(255)",
+            "constraints": []
+          },
+          {
+            "name": "created_at",
+            "type": "TIMESTAMP",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT NOW()"
+            ]
+          },
+          {
+            "name": "updated_at",
+            "type": "TIMESTAMP",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT NOW()"
+            ]
+          }
+        ],
+        "description": "Running instances of a challenge for a team"
+      },
+      {
+        "name": "tickets",
+        "columns": [
+          {
+            "name": "id",
+            "type": "UUID",
+            "constraints": [
+              "PK"
+            ]
+          },
+          {
+            "name": "title",
+            "type": "VARCHAR(200)",
+            "constraints": [
+              "NOT NULL"
+            ]
+          },
+          {
+            "name": "created_by",
+            "type": "UUID",
+            "constraints": [
+              "FK users(id)",
+              "NOT NULL"
+            ]
+          },
+          {
+            "name": "assigned_to",
+            "type": "UUID",
+            "constraints": [
+              "FK users(id)"
+            ]
+          },
+          {
+            "name": "status",
+            "type": "VARCHAR(20)",
+            "constraints": [
+              "NOT NULL"
+            ]
+          },
+          {
+            "name": "priority",
+            "type": "VARCHAR(20)",
+            "constraints": []
+          },
+          {
+            "name": "created_at",
+            "type": "TIMESTAMP",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT NOW()"
+            ]
+          },
+          {
+            "name": "updated_at",
+            "type": "TIMESTAMP",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT NOW()"
+            ]
+          }
+        ],
+        "description": "Support tickets linking players, organizers and devs"
+      },
+      {
+        "name": "ticket_messages",
+        "columns": [
+          {
+            "name": "id",
+            "type": "UUID",
+            "constraints": [
+              "PK"
+            ]
+          },
+          {
+            "name": "ticket_id",
+            "type": "UUID",
+            "constraints": [
+              "FK tickets(id)",
+              "NOT NULL"
+            ]
+          },
+          {
+            "name": "sender_id",
+            "type": "UUID",
+            "constraints": [
+              "FK users(id)",
+              "NOT NULL"
+            ]
+          },
+          {
+            "name": "message",
+            "type": "TEXT",
+            "constraints": [
+              "NOT NULL"
+            ]
+          },
+          {
+            "name": "created_at",
+            "type": "TIMESTAMP",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT NOW()"
+            ]
+          },
+          {
+            "name": "updated_at",
+            "type": "TIMESTAMP",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT NOW()"
+            ]
+          }
+        ],
+        "description": "Chat messages inside a ticket"
+      },
+      {
+        "name": "audit_logs",
+        "columns": [
+          {
+            "name": "id",
+            "type": "UUID",
+            "constraints": [
+              "PK"
+            ]
+          },
+          {
+            "name": "entity_type",
+            "type": "VARCHAR(50)",
+            "constraints": []
+          },
+          {
+            "name": "entity_id",
+            "type": "UUID",
+            "constraints": []
+          },
+          {
+            "name": "action",
+            "type": "VARCHAR(50)",
+            "constraints": []
+          },
+          {
+            "name": "performed_by",
+            "type": "UUID",
+            "constraints": [
+              "FK users(id)"
+            ]
+          },
+          {
+            "name": "details",
+            "type": "JSONB",
+            "constraints": []
+          },
+          {
+            "name": "created_at",
+            "type": "TIMESTAMP",
+            "constraints": [
+              "NOT NULL",
+              "DEFAULT NOW()"
+            ]
+          }
+        ],
+        "description": "Immutable audit trail of critical actions"
+      }
+    ],
+    "external_services": [],
+    "database_relations": []
+  },
+  "mermaid_code": "flowchart LR\n    classDef actor fill:#fff7ed,stroke:#c2410c,color:#1f2937\n    classDef app fill:#ecfeff,stroke:#0891b2,color:#1f2937\n    classDef service fill:#eef2ff,stroke:#4f46e5,color:#1f2937\n    classDef data fill:#f0fdf4,stroke:#15803d,color:#1f2937\n    classDef external fill:#fdf2f8,stroke:#be185d,color:#1f2937\n    subgraph Channels\n    N1_Frontend[\"Frontend\"]\n    class N1_Frontend app\n    end\n    subgraph Backend Services\n    N2_Authservice[\"AuthService\"]\n    class N2_Authservice service\n    N3_Userservice[\"UserService\"]\n    class N3_Userservice service\n    N4_Rbacservice[\"RBACService\"]\n    class N4_Rbacservice service\n    N5_Challengeservice[\"ChallengeService\"]\n    class N5_Challengeservice service\n    N6_Instanceservice[\"InstanceService\"]\n    class N6_Instanceservice service\n    N7_Settingsservice[\"SettingsService\"]\n    class N7_Settingsservice service\n    N8_Ticketservice[\"TicketService\"]\n    class N8_Ticketservice service\n    N9_Notificationservice[\"NotificationService\"]\n    class N9_Notificationservice service\n    N10_Apigateway[\"APIGateway\"]\n    class N10_Apigateway service\n    end\n    subgraph Data Stores\n    N11_Users[(\"users\")]\n    class N11_Users data\n    N12_Roles[(\"roles\")]\n    class N12_Roles data\n    N13_UserRoles[(\"user_roles\")]\n    class N13_UserRoles data\n    N14_Teams[(\"teams\")]\n    class N14_Teams data\n    N15_TeamMembers[(\"team_members\")]\n    class N15_TeamMembers data\n    N16_Challenges[(\"challenges\")]\n    class N16_Challenges data\n    N17_ChallengeSettings[(\"challenge_settings\")]\n    class N17_ChallengeSettings data\n    N18_ChallengeInstances[(\"challenge_instances\")]\n    class N18_ChallengeInstances data\n    N19_Tickets[(\"tickets\")]\n    class N19_Tickets data\n    N20_TicketMessages[(\"ticket_messages\")]\n    class N20_TicketMessages data\n    N21_AuditLogs[(\"audit_logs\")]\n    class N21_AuditLogs data\n    end\n    N22_User([\"User\"])\n    N22_User --> N2_Authservice\n    N2_Authservice --> N3_Userservice\n    N3_Userservice --> N4_Rbacservice\n    N4_Rbacservice --> N5_Challengeservice\n    N5_Challengeservice --> N6_Instanceservice\n    N6_Instanceservice --> N7_Settingsservice\n    N7_Settingsservice --> N8_Ticketservice\n    N8_Ticketservice --> N9_Notificationservice\n    N9_Notificationservice --> N10_Apigateway\n    N10_Apigateway --> N1_Frontend\n    N1_Frontend --> N11_Users\n    N1_Frontend --> N12_Roles\n    N1_Frontend --> N13_UserRoles\n    N1_Frontend --> N14_Teams\n    N1_Frontend --> N15_TeamMembers\n    N1_Frontend --> N16_Challenges\n    N1_Frontend --> N17_ChallengeSettings\n    N1_Frontend --> N18_ChallengeInstances\n    N1_Frontend --> N19_Tickets\n    N1_Frontend --> N20_TicketMessages\n    N1_Frontend --> N21_AuditLogs",
+  "er_diagram_code": "%%{init: {\n  \"theme\": \"base\",\n  \"themeVariables\": {\n    \"primaryColor\": \"#1e293b\",\n    \"primaryTextColor\": \"#f8fafc\",\n    \"primaryBorderColor\": \"#38bdf8\",\n    \"lineColor\": \"#64748b\",\n    \"fontFamily\": \"Inter, sans-serif\"\n  },\n  \"themeCSS\": \"\n    .er.entityBox { fill: #1e293b !important; stroke: #38bdf8 !important; stroke-width: 1.5px !important; }\n    .er.entityLabel { fill: #38bdf8 !important; font-weight: 700 !important; }\n    .er.attributeBoxEven { fill: #0b1329 !important; stroke: rgba(255, 255, 255, 0.08) !important; }\n    .er.attributeBoxOdd { fill: #111a36 !important; stroke: rgba(255, 255, 255, 0.08) !important; }\n    .er.relationshipLabel { fill: #f8fafc !important; }\n    .er.relationshipLabelBox { fill: #1e293b !important; stroke: #38bdf8 !important; }\n    .er.relationshipLine { stroke: #64748b !important; stroke-width: 1.5px !important; }\n    .er text, .er text *, .er tspan, .er .attributeText, .er .labelText, .er [class*=\\\"labelText\\\"], .er [class*=\\\"attributeText\\\"] { fill: #e2e8f0 !important; color: #e2e8f0 !important; font-family: Inter, sans-serif !important; }\n  \"\n}}%%\nerDiagram\n    users {\n        UUID id \"PK\"\n        VARCHAR_255 email \"UNIQUE NOT NULL\"\n        VARCHAR_255 password_hash \"NOT NULL\"\n        VARCHAR_255 full_name\n        BOOLEAN is_active \"NOT NULL DEFAULT true\"\n        TIMESTAMP created_at \"NOT NULL DEFAULT NOW()\"\n        TIMESTAMP updated_at \"NOT NULL DEFAULT NOW()\"\n    }\n    roles {\n        UUID id \"PK\"\n        VARCHAR_50 name \"UNIQUE NOT NULL\"\n        TEXT description\n        TIMESTAMP created_at \"NOT NULL DEFAULT NOW()\"\n        TIMESTAMP updated_at \"NOT NULL DEFAULT NOW()\"\n    }\n    user_roles {\n        UUID id \"PK\"\n        UUID user_id \"FK users(id) NOT NULL\"\n        UUID role_id \"FK roles(id) NOT NULL\"\n        TIMESTAMP created_at \"NOT NULL DEFAULT NOW()\"\n        TIMESTAMP updated_at \"NOT NULL DEFAULT NOW()\"\n    }\n    teams {\n        UUID id \"PK\"\n        VARCHAR_100 name \"NOT NULL\"\n        TIMESTAMP created_at \"NOT NULL DEFAULT NOW()\"\n        TIMESTAMP updated_at \"NOT NULL DEFAULT NOW()\"\n    }\n    team_members {\n        UUID id \"PK\"\n        UUID team_id \"FK teams(id) NOT NULL\"\n        UUID user_id \"FK users(id) NOT NULL\"\n        VARCHAR_50 role\n        TIMESTAMP created_at \"NOT NULL DEFAULT NOW()\"\n        TIMESTAMP updated_at \"NOT NULL DEFAULT NOW()\"\n    }\n    challenges {\n        UUID id \"PK\"\n        VARCHAR_200 title \"NOT NULL\"\n        TEXT description\n        VARCHAR_20 difficulty\n        UUID created_by \"FK users(id) NOT NULL\"\n        TIMESTAMP created_at \"NOT NULL DEFAULT NOW()\"\n        TIMESTAMP updated_at \"NOT NULL DEFAULT NOW()\"\n    }\n    challenge_settings {\n        UUID id \"PK\"\n        UUID challenge_id \"FK challenges(id) UNIQUE NOT NULL\"\n        VARCHAR_50 cloud_provider\n        VARCHAR_50 instance_type\n        INTEGER max_instances\n        TIMESTAMP created_at \"NOT NULL DEFAULT NOW()\"\n        TIMESTAMP updated_at \"NOT NULL DEFAULT NOW()\"\n    }\n    challenge_instances {\n        UUID id \"PK\"\n        UUID challenge_id \"FK challenges(id) NOT NULL\"\n        UUID team_id \"FK teams(id) NOT NULL\"\n        VARCHAR_20 status \"NOT NULL\"\n        VARCHAR_255 endpoint_url\n        TIMESTAMP created_at \"NOT NULL DEFAULT NOW()\"\n        TIMESTAMP updated_at \"NOT NULL DEFAULT NOW()\"\n    }\n    tickets {\n        UUID id \"PK\"\n        VARCHAR_200 title \"NOT NULL\"\n        UUID created_by \"FK users(id) NOT NULL\"\n        UUID assigned_to \"FK users(id)\"\n        VARCHAR_20 status \"NOT NULL\"\n        VARCHAR_20 priority\n        TIMESTAMP created_at \"NOT NULL DEFAULT NOW()\"\n        TIMESTAMP updated_at \"NOT NULL DEFAULT NOW()\"\n    }\n    ticket_messages {\n        UUID id \"PK\"\n        UUID ticket_id \"FK tickets(id) NOT NULL\"\n        UUID sender_id \"FK users(id) NOT NULL\"\n        TEXT message \"NOT NULL\"\n        TIMESTAMP created_at \"NOT NULL DEFAULT NOW()\"\n        TIMESTAMP updated_at \"NOT NULL DEFAULT NOW()\"\n    }\n    audit_logs {\n        UUID id \"PK\"\n        VARCHAR_50 entity_type\n        UUID entity_id\n        VARCHAR_50 action\n        UUID performed_by \"FK users(id)\"\n        JSONB details\n        TIMESTAMP created_at \"NOT NULL DEFAULT NOW()\"\n    }",
+  "generation_source": "groq_single_pass"
+}
