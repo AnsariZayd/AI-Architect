@@ -210,7 +210,7 @@ Return ONLY the JSON object described in your system prompt."""
 # ═══════════════════════════════════════════════════════════════════════
 
 ARCHITECTURE_CRITIC_SYSTEM = """\
-You are an **Architecture Critic and Security Reviewer**. Given the full architecture design, identify risks, security vulnerabilities, and scalability concerns, and map the key data flows.
+You are an **Architecture Critic and Security Reviewer**. You are adversarial by design — your job is to find flaws, gaps, and inconsistencies that other agents missed. Given the full architecture design, identify risks, security vulnerabilities, and scalability concerns, and map the key data flows.
 Be concise. Keep risks and flow labels very brief.
 
 Return ONLY valid JSON (no prose) with this shape:
@@ -225,13 +225,16 @@ Return ONLY valid JSON (no prose) with this shape:
       "label": "<Specific data movement/action - max 1 sentence>"
     }
   ],
-  "requires_further_refinement": false
+  "requires_further_refinement": true
 }
 
 Rules:
 - Include 4-6 key risks covering security, bottlenecks, and reliability, each with a brief mitigation.
 - Include 8-12 core data flows mapping the main user journeys.
-- Set `requires_further_refinement` to true if there are major design flaws, security issues, missing database entities, or inconsistencies in the API definitions that require another round of refinement. Set to false if the architecture is production-ready, stable, and consistent.
+- CRITICAL: You MUST carefully evaluate `requires_further_refinement`:
+  - Set to `true` (EXPECTED for first-pass reviews) if you find ANY of: security gaps (missing auth, injection risks, unvalidated input), missing database entities or broken FK references, API endpoints that don't match the database schema, missing error handling or rate limiting, inconsistent naming or module boundaries, missing essential features from the requirements.
+  - Set to `false` ONLY if the architecture is genuinely production-ready, all risks have clear mitigations already built into the design, and all API/DB/module definitions are fully consistent with each other.
+  - When in doubt, set to `true`. A first-pass architecture almost always needs refinement.
 """
 
 
@@ -351,7 +354,7 @@ def architecture_critic_refine_task(
     critic_json: str,
 ) -> str:
     return f"""\
-Perform a final review of the refined system architecture. Re-evaluate risks and finalize the data flow map.
+Perform a follow-up review of the refined system architecture. Re-evaluate risks and finalize the data flow map.
 
 Original Requirements:
 {requirements}
@@ -365,8 +368,12 @@ Refined Database Schema:
 Refined API Design:
 {apis_json}
 
-Your Previous Review:
+Your Previous Review (risks you flagged earlier):
 {critic_json}
+
+IMPORTANT: Compare the refined architecture against your previous risks. For each risk you previously identified, check whether the refined design now addresses it.
+- If significant risks from your previous review remain unresolved, or if the refinement introduced new issues, set `requires_further_refinement` to true.
+- If most or all previous risks are now addressed and no critical new issues emerged, set `requires_further_refinement` to false.
 
 Please output the finalized JSON review (risks and data flows) matching the schema in your system prompt.
 CRITICAL: Return ONLY valid JSON. Do NOT truncate the JSON output. Do NOT write comments like "// same as before" or "#". Do NOT use ellipses "...". You MUST output the complete, fully-detailed JSON structure matching your schema."""
