@@ -225,16 +225,53 @@ Return ONLY valid JSON (no prose) with this shape:
       "label": "<Specific data movement/action - max 1 sentence>"
     }
   ],
-  "requires_further_refinement": true
+  "requires_further_refinement": true,
+  "components_needing_refinement": {
+    "system_architect": true,
+    "database_architect": false,
+    "api_designer": true
+  }
 }
 
 Rules:
 - Include 4-6 key risks covering security, bottlenecks, and reliability, each with a brief mitigation.
 - Include 8-12 core data flows mapping the main user journeys.
-- CRITICAL: You MUST carefully evaluate `requires_further_refinement`:
-  - Set to `true` (EXPECTED for first-pass reviews) if you find ANY of: security gaps (missing auth, injection risks, unvalidated input), missing database entities or broken FK references, API endpoints that don't match the database schema, missing error handling or rate limiting, inconsistent naming or module boundaries, missing essential features from the requirements.
-  - Set to `false` ONLY if the architecture is genuinely production-ready, all risks have clear mitigations already built into the design, and all API/DB/module definitions are fully consistent with each other.
-  - When in doubt, set to `true`. A first-pass architecture almost always needs refinement.
+- CRITICAL: You MUST carefully evaluate `requires_further_refinement` and `components_needing_refinement`:
+  - Set `requires_further_refinement` to `true` ONLY if you find CRITICAL structural flaws, security gaps (missing auth, injection risks, unvalidated input), missing database entities/relations, API/DB schema mismatches, or missing core features from the requirements that require design changes.
+  - If `requires_further_refinement` is `true`, specify which components need to be modified in `components_needing_refinement`. Set to `true` ONLY for components that actually require changes to address the critical flaws.
+  - Set `requires_further_refinement` to `false` if the design is solid, consistent, and has clear mitigations for the identified risks, meaning no changes to the design files are needed.
+  - Never set `requires_further_refinement` to `true` for minor phrasing suggestions, cosmetic updates, or rephrasings.
+"""
+
+ARCHITECTURE_CRITIC_REFINE_SYSTEM = """\
+You are an **Architecture Critic and Security Reviewer**. You are performing a follow-up review of a refined system architecture. Your job is to check if the design has successfully mitigated the previously identified risks.
+Be concise. Keep risks and flow labels very brief.
+
+Return ONLY valid JSON (no prose) with this shape:
+{
+  "risks": [
+    "<Remaining major risk - mitigation>"
+  ],
+  "data_flows": [
+    {
+      "source": "<Actor name or module name>",
+      "target": "<Module name or data store name>",
+      "label": "<Specific data movement/action - max 1 sentence>"
+    }
+  ],
+  "requires_further_refinement": false,
+  "components_needing_refinement": {
+    "system_architect": false,
+    "database_architect": false,
+    "api_designer": false
+  }
+}
+
+Rules:
+- CRITICAL: You MUST evaluate if the previous critical risks have been resolved.
+- Set `requires_further_refinement` to `true` ONLY if there are still CRITICAL unresolved design flaws (e.g. completely missing auth, broken database relationships, or severe security vulnerabilities) or if the refinement introduced new critical bugs.
+- If `requires_further_refinement` is `true`, specify which components need to be modified in `components_needing_refinement`. Set to `true` ONLY for components that actually require changes to address the critical flaws.
+- Set `requires_further_refinement` to `false` (EXPECTED) if the previous risks have been mitigated or if the remaining issues are minor/cosmetic. Do not trigger endless loops for minor phrasing/wording improvements.
 """
 
 
@@ -286,7 +323,11 @@ Critic's Feedback (risks, data flows):
 {critic_json}
 
 Please output the refined and corrected JSON module design matching the schema in your system prompt. Fix all issues mentioned by the critic.
-CRITICAL: Return ONLY valid JSON. Do NOT truncate the JSON output. Do NOT write comments like "// same as before" or "#". Do NOT use ellipses "...". You MUST output the complete, fully-detailed JSON structure matching your schema."""
+
+CRITICAL RULES:
+1. Only make changes that are directly related to mitigating the risks/issues flagged by the critic.
+2. Keep all unchanged modules, external services, and descriptions EXACTLY identical to your previous design. Do NOT rephrase descriptions or change words unless it is required to fix a risk.
+3. Return ONLY valid JSON. Do NOT truncate the JSON output. Do NOT write comments or use ellipses. You MUST output the complete, fully-detailed JSON structure matching your schema."""
 
 
 def database_architect_refine_task(
@@ -312,7 +353,11 @@ Critic's Feedback (risks):
 {critic_json}
 
 Please output the refined and corrected JSON database schema matching the schema in your system prompt. Ensure all FK relations are correct and any table/indexing gaps are resolved.
-CRITICAL: Return ONLY valid JSON. Do NOT truncate the JSON output. Do NOT write comments like "// same as before" or "#". Do NOT use ellipses "...". You MUST output the complete, fully-detailed JSON structure matching your schema."""
+
+CRITICAL RULES:
+1. Only make changes that are directly related to mitigating the database risks/issues flagged by the critic.
+2. Keep all unchanged tables, columns, constraints, and descriptions EXACTLY identical to your previous database schema. Do NOT rephrase descriptions or change column names/types unless it is required to fix a risk.
+3. Return ONLY valid JSON. Do NOT truncate the JSON output. Do NOT write comments or use ellipses. You MUST output the complete, fully-detailed JSON structure matching your schema."""
 
 
 def api_designer_refine_task(
@@ -342,7 +387,11 @@ Critic's Feedback:
 {critic_json}
 
 Please output the refined and corrected JSON API specification matching the schema in your system prompt. Fix any endpoint mismatches, missing authentication, or input validation gaps.
-CRITICAL: Return ONLY valid JSON. Do NOT truncate the JSON output. Do NOT write comments like "// same as before" or "#". Do NOT use ellipses "...". You MUST output the complete, fully-detailed JSON structure matching your schema."""
+
+CRITICAL RULES:
+1. Only make changes that are directly related to mitigating the API risks/issues flagged by the critic.
+2. Keep all unchanged API endpoints, paths, methods, request/response bodies, and descriptions EXACTLY identical to your previous design. Do NOT rephrase descriptions or change words unless it is required to fix a risk.
+3. Return ONLY valid JSON. Do NOT truncate the JSON output. Do NOT write comments or use ellipses. You MUST output the complete, fully-detailed JSON structure matching your schema."""
 
 
 def architecture_critic_refine_task(
@@ -372,8 +421,9 @@ Your Previous Review (risks you flagged earlier):
 {critic_json}
 
 IMPORTANT: Compare the refined architecture against your previous risks. For each risk you previously identified, check whether the refined design now addresses it.
-- If significant risks from your previous review remain unresolved, or if the refinement introduced new issues, set `requires_further_refinement` to true.
-- If most or all previous risks are now addressed and no critical new issues emerged, set `requires_further_refinement` to false.
+- If significant critical risks from your previous review remain unresolved, or if the refinement introduced new critical issues, set `requires_further_refinement` to true and flag the components that must be corrected.
+- If most or all previous risks are now addressed and no new critical issues emerged, set `requires_further_refinement` to false and set all components in `components_needing_refinement` to false.
+- Do NOT trigger another round of refinement for cosmetic changes, wording differences, or minor phrasing tweaks.
 
 Please output the finalized JSON review (risks and data flows) matching the schema in your system prompt.
 CRITICAL: Return ONLY valid JSON. Do NOT truncate the JSON output. Do NOT write comments like "// same as before" or "#". Do NOT use ellipses "...". You MUST output the complete, fully-detailed JSON structure matching your schema."""

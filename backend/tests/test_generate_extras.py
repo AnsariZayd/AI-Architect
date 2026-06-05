@@ -154,6 +154,58 @@ async def test_autogen_runner_dynamic_loop(mock_run_agent):
 
 @pytest.mark.anyio
 @patch("app.services.agents.autogen_runner._run_single_agent")
+async def test_autogen_runner_conditional_refinement(mock_run_agent):
+    mock_run_agent.side_effect = [
+        # Round 1
+        {"actors": [], "features": []},  # analyst
+        {"modules": [{"name": "Auth"}], "tech_stack": {}},  # system_architect
+        {"database_entities": [{"name": "users"}], "database_relations": []},  # db_architect
+        {"apis": [{"path": "/login"}]},  # api_designer
+        {
+            "risks": ["DB issue"],
+            "data_flows": [],
+            "requires_further_refinement": True,
+            "components_needing_refinement": {
+                "system_architect": False,
+                "database_architect": True,
+                "api_designer": False
+            }
+        },  # critic: flags only database for refinement
+        
+        # Round 2 (Refinement Round 1)
+        # 1) System Architect is skipped (returns modules_result: Auth)
+        # 2) Database Architect is executed:
+        {"database_entities": [{"name": "users_refined"}], "database_relations": []},  # db_architect refined
+        # 3) API Designer is skipped (returns apis_result: /login)
+        # 4) Critic is executed:
+        {
+            "risks": ["resolved"],
+            "data_flows": [],
+            "requires_further_refinement": False,
+            "components_needing_refinement": {
+                "system_architect": False,
+                "database_architect": False,
+                "api_designer": False
+            }
+        },
+    ]
+    
+    from app.services.agents.autogen_runner import autogen_runner
+    with patch("app.core.config.settings.groq_api_key", "gsk_fake"):
+        res = await autogen_runner.run("test requirements")
+        
+    assert res is not None
+    # Total calls to run_single_agent should be 7:
+    # Round 1: analyst (1), system (2), db (3), api (4), critic (5)
+    # Round 2: db refined (6), critic (7)
+    assert mock_run_agent.call_count == 7
+    assert res["architecture"]["modules"] == [{"name": "Auth"}]  # kept from Round 1
+    assert res["architecture"]["database_entities"] == [{"name": "users_refined"}]  # updated in Round 2
+    assert res["architecture"]["apis"] == [{"path": "/login"}]  # kept from Round 1
+
+
+@pytest.mark.anyio
+@patch("app.services.agents.autogen_runner._run_single_agent")
 async def test_autogen_runner_refinement_fallback_on_error(mock_run_agent):
     mock_run_agent.side_effect = [
         # Round 1 (Succeeds)

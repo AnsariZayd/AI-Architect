@@ -82,6 +82,7 @@ class ArchitectureDesign(BaseModel):
 class ArchitectureResponse(BaseModel):
     analysis: RequirementAnalysis
     architecture: ArchitectureDesign
+    initial_architecture: ArchitectureDesign | None = None
     mermaid_code: str
     er_diagram_code: str = ""
     generation_source: str = "local_fallback"

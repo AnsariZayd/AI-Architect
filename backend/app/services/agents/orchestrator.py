@@ -90,6 +90,7 @@ class ArchitectOrchestrator:
     ) -> ArchitectureResponse:
         generation_source = "local_fallback"
         autogen_result = await autogen_runner.run(payload.requirements)
+        initial_architecture = None
 
         # Check if autogen was complete
         is_autogen_complete = False
@@ -109,6 +110,14 @@ class ArchitectOrchestrator:
             raw_arch["database_relations"] = _coerce_relations(raw_arch.get("database_relations", []))
             raw_arch["apis"] = _coerce_apis(raw_arch.get("apis", []))
             architecture = ArchitectureDesign.model_validate(raw_arch)
+
+            raw_initial_arch = autogen_result.get("initial_architecture")
+            if raw_initial_arch:
+                raw_initial_arch["modules"] = _coerce_modules(raw_initial_arch.get("modules", []))
+                raw_initial_arch["database_entities"] = _coerce_entities(raw_initial_arch.get("database_entities", []))
+                raw_initial_arch["database_relations"] = _coerce_relations(raw_initial_arch.get("database_relations", []))
+                raw_initial_arch["apis"] = _coerce_apis(raw_initial_arch.get("apis", []))
+                initial_architecture = ArchitectureDesign.model_validate(raw_initial_arch)
         else:
             analysis = await self.analyze(payload.requirements)
             base_prompt = architecture_prompt(payload.requirements, mode="architecture")
@@ -160,6 +169,7 @@ class ArchitectOrchestrator:
         response = ArchitectureResponse(
             analysis=analysis,
             architecture=architecture,
+            initial_architecture=initial_architecture,
             mermaid_code=mermaid_code,
             er_diagram_code=er_diagram_code,
             generation_source=generation_source,

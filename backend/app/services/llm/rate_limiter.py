@@ -108,7 +108,7 @@ class RateLimiter:
             self._last_request = now
             remaining = self._max_requests - len(self._timestamps)
             print(
-                f"[RateLimiter] ✓ Request permitted "
+                f"[RateLimiter] [OK] Request permitted "
                 f"({len(self._timestamps)}/{self._max_requests} used, "
                 f"{remaining} remaining in window)"
             )

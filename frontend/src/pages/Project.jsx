@@ -1,7 +1,9 @@
 import { useEffect, useState, useRef } from "react";
-import { Download, Sparkles, Copy, Check, Database, Sun, Moon } from "lucide-react";
+import { Download, Sparkles, Copy, Check, Database, Sun, Moon, GitCompare } from "lucide-react";
 
 import ArchitectureCard from "../components/ArchitectureCard.jsx";
+import ArchitectureStats from "../components/ArchitectureStats.jsx";
+import RefinementDiffViewer from "../components/RefinementDiffViewer.jsx";
 import DiagramViewer from "../components/DiagramViewer.jsx";
 import RequirementEditor from "../components/RequirementEditor.jsx";
 import BoilerplateViewer from "../components/BoilerplateViewer.jsx";
@@ -39,6 +41,7 @@ export default function Project() {
   const [runInfo, setRunInfo] = useState(null);
   const [summaryCopied, setSummaryCopied] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
+  const [isDiffMode, setIsDiffMode] = useState(false);
   const abortControllerRef = useRef(null);
 
   useEffect(() => {
@@ -54,6 +57,7 @@ export default function Project() {
     setError("");
     setIsLoading(true);
     setResult(null);
+    setIsDiffMode(false);
     const startedAt = performance.now();
 
     // Create a new AbortController for this generation run
@@ -447,6 +451,24 @@ AI Software Architect Summary:
             </div>
             {result && (
               <div style={{ display: "flex", gap: "8px" }}>
+                {/* Diff View */}
+                {result.initial_architecture && (
+                  <button
+                    className={`icon-button ${isDiffMode ? "active" : ""}`}
+                    type="button"
+                    onClick={() => setIsDiffMode(!isDiffMode)}
+                    title="Compare Round 1 draft vs Refined Spec"
+                    style={{
+                      borderColor: isDiffMode ? "var(--accent)" : "rgba(255,255,255,0.08)",
+                      background: isDiffMode ? "rgba(6, 182, 212, 0.1)" : "transparent",
+                    }}
+                  >
+                    <GitCompare size={17} aria-hidden="true" style={{ color: isDiffMode ? "var(--accent)" : "inherit" }} />
+                    <span className="btn-text" style={{ color: isDiffMode ? "var(--accent)" : "inherit" }}>
+                      {isDiffMode ? "View Refined Spec" : "Refinement Audit"}
+                    </span>
+                  </button>
+                )}
                 {/* Download Markdown */}
                 <button
                   className="icon-button"
@@ -500,8 +522,14 @@ AI Software Architect Summary:
               )}
             </div>
           )}
+          {result && <ArchitectureStats result={result} />}
           {isLoading ? (
             <LoadingSkeleton />
+          ) : isDiffMode && result?.initial_architecture ? (
+            <RefinementDiffViewer
+              initial={result.initial_architecture}
+              refined={result.architecture}
+            />
           ) : (
             <>
               <ArchitectureCard result={result} />

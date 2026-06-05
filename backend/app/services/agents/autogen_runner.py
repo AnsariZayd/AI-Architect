@@ -19,6 +19,7 @@ from typing import Any
 from app.core.config import settings
 from app.services.agents.agent_prompts import (
     API_DESIGNER_SYSTEM,
+    ARCHITECTURE_CRITIC_REFINE_SYSTEM,
     ARCHITECTURE_CRITIC_SYSTEM,
     DATABASE_ARCHITECT_SYSTEM,
     REQUIREMENT_ANALYST_SYSTEM,
@@ -309,6 +310,14 @@ class MultiAgentRunner:
                 current_model_ref,
             )
 
+            # Save the successful Round 1 merged draft as our initial draft
+            initial_architecture = {
+                **modules_result,
+                **database_result,
+                **apis_result,
+                **critic_result,
+            }
+
             # Save the successful Round 1 merged draft as our fallback base
             last_successful_merged_result = {
                 "analysis": analysis,
@@ -330,57 +339,90 @@ class MultiAgentRunner:
                     print(f"[MultiAgent] Critic indicates no further refinement is needed (requires_further_refinement={critic_result.get('requires_further_refinement')}). Exiting loop.")
                     break
                 
+                refinement_needs = critic_result.get("components_needing_refinement") or {}
+                
+                def is_flagged(val: Any) -> bool:
+                    if val is None:
+                        return True
+                    if isinstance(val, bool):
+                        return val
+                    if isinstance(val, str):
+                        return val.strip().lower() in ("true", "yes", "1", "y")
+                    if isinstance(val, (int, float)):
+                        return val != 0
+                    return True
+
+                refine_system = is_flagged(refinement_needs.get("system_architect", True))
+                refine_database = is_flagged(refinement_needs.get("database_architect", True))
+                refine_api = is_flagged(refinement_needs.get("api_designer", True))
+
+                if not (refine_system or refine_database or refine_api):
+                    print(f"[MultiAgent] Critic requested refinement but flagged no specific components. Exiting loop.")
+                    break
+
                 print(f"[MultiAgent] Starting Refinement Round {refinement_round} (Attempting to resolve critic's risks)...")
                 try:
                     # 1) Refine System Architect
-                    refined_modules = await _run_single_agent(
-                        "system_architect",
-                        SYSTEM_ARCHITECT_SYSTEM,
-                        system_architect_refine_task(
-                            requirements,
-                            analysis_str,
-                            json.dumps(modules_result),
-                            json.dumps(critic_result),
-                        ),
-                        models,
-                        current_model_ref,
-                    )
+                    if refine_system:
+                        refined_modules = await _run_single_agent(
+                            "system_architect",
+                            SYSTEM_ARCHITECT_SYSTEM,
+                            system_architect_refine_task(
+                                requirements,
+                                analysis_str,
+                                json.dumps(modules_result),
+                                json.dumps(critic_result),
+                            ),
+                            models,
+                            current_model_ref,
+                        )
+                    else:
+                        print("[MultiAgent] Skipping System Architect refinement (not flagged).")
+                        refined_modules = modules_result
 
                     # 2) Refine Database Architect
-                    refined_database = await _run_single_agent(
-                        "database_architect",
-                        DATABASE_ARCHITECT_SYSTEM,
-                        database_architect_refine_task(
-                            requirements,
-                            _compact_analysis(analysis),
-                            _compact_modules(refined_modules),
-                            json.dumps(database_result),
-                            json.dumps(critic_result),
-                        ),
-                        models,
-                        current_model_ref,
-                    )
+                    if refine_database:
+                        refined_database = await _run_single_agent(
+                            "database_architect",
+                            DATABASE_ARCHITECT_SYSTEM,
+                            database_architect_refine_task(
+                                requirements,
+                                _compact_analysis(analysis),
+                                _compact_modules(refined_modules),
+                                json.dumps(database_result),
+                                json.dumps(critic_result),
+                            ),
+                            models,
+                            current_model_ref,
+                        )
+                    else:
+                        print("[MultiAgent] Skipping Database Architect refinement (not flagged).")
+                        refined_database = database_result
 
                     # 3) Refine API Designer
-                    refined_apis = await _run_single_agent(
-                        "api_designer",
-                        API_DESIGNER_SYSTEM,
-                        api_designer_refine_task(
-                            requirements,
-                            _compact_analysis(analysis),
-                            _compact_modules(refined_modules),
-                            _compact_database(refined_database),
-                            json.dumps(apis_result),
-                            json.dumps(critic_result),
-                        ),
-                        models,
-                        current_model_ref,
-                    )
+                    if refine_api:
+                        refined_apis = await _run_single_agent(
+                            "api_designer",
+                            API_DESIGNER_SYSTEM,
+                            api_designer_refine_task(
+                                requirements,
+                                _compact_analysis(analysis),
+                                _compact_modules(refined_modules),
+                                _compact_database(refined_database),
+                                json.dumps(apis_result),
+                                json.dumps(critic_result),
+                            ),
+                            models,
+                            current_model_ref,
+                        )
+                    else:
+                        print("[MultiAgent] Skipping API Designer refinement (not flagged).")
+                        refined_apis = apis_result
 
                     # 4) Refine Architecture Critic (Final Review for this round)
                     refined_critic = await _run_single_agent(
                         "architecture_critic",
-                        ARCHITECTURE_CRITIC_SYSTEM,
+                        ARCHITECTURE_CRITIC_REFINE_SYSTEM,
                         architecture_critic_refine_task(
                             requirements,
                             _compact_analysis(analysis),
@@ -415,7 +457,11 @@ class MultiAgentRunner:
 
             self.last_status = "completed"
             print("[MultiAgent] OK: Full pipeline completed successfully")
-            return last_successful_merged_result
+            return {
+                "analysis": analysis,
+                "architecture": last_successful_merged_result["architecture"],
+                "initial_architecture": initial_architecture,
+            }
 
         except Exception as exc:
             self.last_status = f"failed: {exc}"
