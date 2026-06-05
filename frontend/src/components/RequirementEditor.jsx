@@ -1,11 +1,12 @@
 import { useState, useRef } from "react";
-import { FileText, Send, Trash2, Upload, AlertCircle } from "lucide-react";
+import { FileText, Send, Trash2, Upload, AlertCircle, Square } from "lucide-react";
 import { API_BASE_URL } from "../services/api.js";
 
 export default function RequirementEditor({
   value,
   onChange,
   onSubmit,
+  onStop,
   isLoading,
 }) {
   const [isUploading, setIsUploading] = useState(false);
@@ -154,24 +155,37 @@ export default function RequirementEditor({
         <span className="muted-item" style={{ fontSize: "0.75rem" }}>
           Press <kbd style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", padding: "2px 5px", borderRadius: "3px", color: "var(--accent)" }}>Ctrl + Enter</kbd> to generate
         </span>
-        <button
-          className="primary-button"
-          type="button"
-          onClick={onSubmit}
-          disabled={isLoading || isUploading || value.trim().length < 10}
-        >
-          {isLoading ? (
-            <>
-              <span className="spinner" style={{ marginRight: "8px" }} />
-              Generating...
-            </>
-          ) : (
-            <>
-              <Send size={17} style={{ marginRight: "6px" }} aria-hidden="true" />
-              Generate Architecture
-            </>
+        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+          {isLoading && (
+            <button
+              className="danger-button"
+              type="button"
+              onClick={onStop}
+              title="Stop generation"
+            >
+              <Square size={14} fill="currentColor" aria-hidden="true" />
+              Stop
+            </button>
           )}
-        </button>
+          <button
+            className="primary-button"
+            type="button"
+            onClick={onSubmit}
+            disabled={isLoading || isUploading || value.trim().length < 10}
+          >
+            {isLoading ? (
+              <>
+                <span className="spinner" style={{ marginRight: "8px" }} />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Send size={17} style={{ marginRight: "6px" }} aria-hidden="true" />
+                Generate Architecture
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </section>
   );

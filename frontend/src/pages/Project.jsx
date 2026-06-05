@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Download, Sparkles, Copy, Check, Database, Sun, Moon } from "lucide-react";
 
 import ArchitectureCard from "../components/ArchitectureCard.jsx";
@@ -39,6 +39,7 @@ export default function Project() {
   const [runInfo, setRunInfo] = useState(null);
   const [summaryCopied, setSummaryCopied] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
+  const abortControllerRef = useRef(null);
 
   useEffect(() => {
     if (theme === "light") {
@@ -54,6 +55,10 @@ export default function Project() {
     setIsLoading(true);
     setResult(null);
     const startedAt = performance.now();
+
+    // Create a new AbortController for this generation run
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     const milestones = [
       "Analyzing requirements and identifying core actors...",
@@ -87,7 +92,7 @@ export default function Project() {
       const architecture = await generateArchitecture({
         project_id: activeProject.id,
         requirements,
-      });
+      }, { signal: controller.signal });
       setResult(architecture);
       setRunInfo({
         status: "Generation complete",
@@ -97,11 +102,22 @@ export default function Project() {
         version: architecture.version,
       });
     } catch (caughtError) {
-      setError(caughtError.message);
-      setRunInfo({ status: "Generation failed" });
+      if (caughtError.name === "AbortError") {
+        setRunInfo({ status: "Generation stopped by user" });
+      } else {
+        setError(caughtError.message);
+        setRunInfo({ status: "Generation failed" });
+      }
     } finally {
       clearInterval(milestoneInterval);
+      abortControllerRef.current = null;
       setIsLoading(false);
+    }
+  }
+
+  function handleStop() {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
   }
 
@@ -419,6 +435,7 @@ AI Software Architect Summary:
           value={requirements}
           onChange={setRequirements}
           onSubmit={handleGenerate}
+          onStop={handleStop}
           isLoading={isLoading}
         />
 

@@ -3,12 +3,14 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000
 export { API_BASE_URL };
 
 async function request(path, options = {}) {
+  const { signal, ...restOptions } = options;
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
       "Content-Type": "application/json",
-      ...options.headers,
+      ...restOptions.headers,
     },
-    ...options,
+    signal,
+    ...restOptions,
   });
 
   if (!response.ok) {
@@ -37,9 +39,10 @@ export function analyzeRequirements(requirements) {
   });
 }
 
-export function generateArchitecture(payload) {
+export function generateArchitecture(payload, { signal } = {}) {
   return request("/api/generate/architecture", {
     method: "POST",
     body: JSON.stringify(payload),
+    signal,
   });
 }
